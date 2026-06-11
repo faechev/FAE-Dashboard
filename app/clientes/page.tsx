@@ -17,6 +17,7 @@ export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
+  const [cargando, setCargando] = useState(true);
   const [form, setForm] = useState({
     nombre: "",
     empresa: "",
@@ -24,15 +25,20 @@ export default function ClientesPage() {
     telefono: "",
   });
 
-  // Cargar desde LocalStorage
   useEffect(() => {
-    const guardados = localStorage.getItem("clientes");
-    if (guardados) setClientes(JSON.parse(guardados));
+    fetchClientes();
   }, []);
 
-  // Guardar en LocalStorage
-  const guardarEnStorage = (lista: Cliente[]) => {
-    localStorage.setItem("clientes", JSON.stringify(lista));
+  const fetchClientes = async () => {
+    try {
+      const res = await fetch("/api/clientes");
+      const data = await res.json();
+      setClientes(data);
+    } catch (error) {
+      console.error("Error al cargar clientes:", error);
+    } finally {
+      setCargando(false);
+    }
   };
 
   const abrirModalNuevo = () => {
@@ -57,34 +63,37 @@ export default function ClientesPage() {
     setClienteEditando(null);
   };
 
-  const guardarCliente = () => {
+  const guardarCliente = async () => {
     if (!form.nombre.trim()) return;
 
-    if (clienteEditando) {
-      // Editar
-      const actualizada = clientes.map((c) =>
-        c.id === clienteEditando.id ? { ...c, ...form } : c
-      );
-      setClientes(actualizada);
-      guardarEnStorage(actualizada);
-    } else {
-      // Crear
-      const nuevo: Cliente = {
-        id: Date.now().toString(),
-        ...form,
-      };
-      const actualizada = [...clientes, nuevo];
-      setClientes(actualizada);
-      guardarEnStorage(actualizada);
+    try {
+      if (clienteEditando) {
+        await fetch(`/api/clientes/${clienteEditando.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      } else {
+        await fetch("/api/clientes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      }
+      await fetchClientes();
+      cerrarModal();
+    } catch (error) {
+      console.error("Error al guardar cliente:", error);
     }
-
-    cerrarModal();
   };
 
-  const eliminarCliente = (id: string) => {
-    const actualizada = clientes.filter((c) => c.id !== id);
-    setClientes(actualizada);
-    guardarEnStorage(actualizada);
+  const eliminarCliente = async (id: string) => {
+    try {
+      await fetch(`/api/clientes/${id}`, { method: "DELETE" });
+      await fetchClientes();
+    } catch (error) {
+      console.error("Error al eliminar cliente:", error);
+    }
   };
 
   return (
@@ -95,7 +104,6 @@ export default function ClientesPage() {
         <Header />
 
         <div className="p-8">
-          {/* Encabezado */}
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-2xl font-bold text-slate-800">Clientes</h2>
@@ -112,9 +120,12 @@ export default function ClientesPage() {
             </button>
           </div>
 
-          {/* Tabla */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-100">
-            {clientes.length === 0 ? (
+            {cargando ? (
+              <div className="text-center py-16 text-slate-400">
+                <p>Cargando clientes...</p>
+              </div>
+            ) : clientes.length === 0 ? (
               <div className="text-center py-16 text-slate-400">
                 <p className="text-lg font-medium">No hay clientes todavía</p>
                 <p className="text-sm mt-1">Hacé clic en "Nuevo cliente" para agregar uno</p>
@@ -162,7 +173,6 @@ export default function ClientesPage() {
         </div>
       </section>
 
-      {/* Modal */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
@@ -186,7 +196,6 @@ export default function ClientesPage() {
                   placeholder="Ej: María López"
                 />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-slate-700 block mb-1">Empresa</label>
                 <input
@@ -197,7 +206,6 @@ export default function ClientesPage() {
                   placeholder="Ej: FAE Stills"
                 />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-slate-700 block mb-1">Email</label>
                 <input
@@ -208,7 +216,6 @@ export default function ClientesPage() {
                   placeholder="Ej: maria@email.com"
                 />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-slate-700 block mb-1">Teléfono</label>
                 <input
